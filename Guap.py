@@ -1,18 +1,20 @@
+import datetime
 from random import randint
-import keyboard
 import flet as ft
 import pandas as pd
-import datetime
 from data_base import PostgresConnection, ParquetStorage
+import keyboard
 
-
+# Подключаемся к базе данны
 db = PostgresConnection(
     database="brick_game",
     password="PENROG21"
 )
 db.connect()
 
+# Подключаемся к файлу для озера данных.
 pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
+pq_topic = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data_topic.parquet')
 
 
 # page - это вся страница приложения
@@ -37,12 +39,12 @@ def main(page: ft.Page):
         page.window.height = 800
         # Возможность менять размер окна
 
+        # Глобальные пременые.
         login_user = None
-        gmail_user = None
         id_user = None
 
         def open_dialog(dialog_to_open: ft.AlertDialog):
-            """Открывает диалог.
+            """Открывает диалоговое окно.
             Args:
                 dialog_to_open: Диалоговое окно, которое нужно открыть.
             """
@@ -50,7 +52,7 @@ def main(page: ft.Page):
             dialog_to_open.update()
 
         def close_dialog(dialog_to_close: ft.AlertDialog):
-            """Закрывает диалог.
+            """Закрывает диалоговое окно.
             Args:
                 dialog_to_close: Диалоговое окно, которое нужно закрыть.
             """
@@ -59,7 +61,7 @@ def main(page: ft.Page):
 
         def load(e):
             """
-            Функция для сериализация и скачивания данных. Игры
+            Функция для сериализации и скачивания данных игры.
             """
             nonlocal id_user
             # Создаем DataFrame
@@ -71,7 +73,7 @@ def main(page: ft.Page):
             elif dropdown.value == 'excel':
                 df.to_excel('Brick_data.xlsx', index=False)
             elif dropdown.value == 'csv':
-                df.to_csv('Brick_.data.csv', index=False)
+                df.to_csv('Brick_data.csv', index=False)
 
             # Сообщаем что данные скачены.
             open_dialog(load_message)
@@ -120,7 +122,8 @@ def main(page: ft.Page):
             content=ft.Text("Компьютер взял последний кирпич.\n"
                             "Компьютер занял предпоследнее место, а вы второе🥈😉", size=16),  # Основное сообщение
             actions=[
-                ft.TextButton(text="Реванш", on_click=lambda e: close_dialog(defeat_message)),  # Кнопка для закрытия окна
+                ft.TextButton(text="Реванш", on_click=lambda e: close_dialog(defeat_message)),
+                # Кнопка для закрытия окна
             ],
             modal=True,  # Делает диалоговое окно модальным
             open=False,  # Начальное положение (не открыто)
@@ -133,7 +136,8 @@ def main(page: ft.Page):
                             'За ход можно взять 1, 2 или 3 кирпича.\n'
                             "Проиграл тот, кому нечего брать.", size=16),  # Основное сообщение)
             actions=[
-                ft.TextButton(text="Играть!", on_click=lambda e: close_dialog(rule_message)),  # Кнопка для закрытия окна
+                ft.TextButton(text="Играть!", on_click=lambda e: close_dialog(rule_message)),
+                # Кнопка для закрытия окна
             ],
             modal=True,  # Делает диалоговое окно модальным
             open=False,  # Начальное положение (не открыто)
@@ -141,22 +145,32 @@ def main(page: ft.Page):
         )
 
         def change_theme(e):
-            """  Функция, которая меняет тему на противоположную.
-            :param e: Сообщение от кнопки, на которую нажали.  """
+            """
+            Функция, которая меняет тему на противоположную.
+            """
             if page.theme_mode == ft.ThemeMode.DARK:
+                # Если текущая тема - темная, меняем ее на светлую
                 page.theme_mode = ft.ThemeMode.LIGHT
-                page.Icons = ft.Icons.DARK_MODE_ROUNDED
-                e.control.Icons = ft.Icons.DARK_MODE_ROUNDED
+                page.Icon = ft.Icons.DARK_MODE_ROUNDED
+                e.control.Icon = ft.Icons.DARK_MODE_ROUNDED
+
+                pq_topic.add_data_topic(False, id_user)
             else:
+                # Если текущая тема - светлая, меняем ее на темную
                 page.theme_mode = ft.ThemeMode.DARK
-                page.Icons = ft.Icons.SUNNY
-                e.control.Icons = ft.Icons.SUNNY  # Обновляем иконку на кнопке
+                page.Icon = ft.Icons.SUNNY
+                e.control.Icon = ft.Icons.SUNNY
+
+                pq_topic.add_data_topic(True, id_user)
+            # Обновляем отображение страницы
             page.update()
 
+        # Кнопка смены темы.
         button_sunny = ft.IconButton(icon=ft.Icons.SUNNY, selected_icon=ft.Icons.MOOD_BAD, on_click=change_theme)
 
         # Создаем текст для отображения количества оставшихся кирпичей
-        output_number_brickse = ft.Text(value=f"Количество кирпичей: {number_bricks}", size=32, weight=ft.FontWeight.BOLD)
+        output_number_brickse = ft.Text(value=f"Количество кирпичей: {number_bricks}", size=32,
+                                        weight=ft.FontWeight.BOLD)
         # Создаем текст для отображения количества побед
         number_wins = ft.Text(value="", size=32, visible=False)
 
@@ -216,16 +230,18 @@ def main(page: ft.Page):
                 computer_player = randint(1, 3)  # Ход компьютера
 
             nonlocal id_user
+            # Вычитаем ход из общей суммы кирпичей.
             number_bricks -= computer_player
+            # Записываем в общий дата лайк
             pq.add_data(int(id_user), 2, computer_player, number_bricks)
 
             if number_bricks <= 0:  # Проверка на поражение
                 # Сообщаем о поражении
                 open_dialog(defeat_message)
                 number_bricks = int(randint(12, 20))
-
+                # Записываем в бд
                 db.record_game_result(int(id_user), False)
-
+                # Открываем все скрытые кнопки
                 after_one_game(playr_or_computer=True)
 
             text_player_move.visible = True
@@ -235,27 +251,37 @@ def main(page: ft.Page):
             page.update()
 
         def player_move(e):
+            """
+            Функция для хода игрока.
+            """
+            # Получаем ход пользователя
             move = int(e.control.data)
             nonlocal number_bricks
             if number_bricks < move:
+                # Сообщение об ошибке хода
                 open_dialog(error_message)
             else:
-                # Вычитаем ход игрока из общей сумму кирпичей.
+                # Вычитаем ход игрока из общей суммы кирпичей.
                 taken_bricks = int(move)
+                # Вычитаем
                 number_bricks -= taken_bricks
+                # Записываем в общий дата лайк
                 nonlocal id_user
                 pq.add_data(int(id_user), 1, taken_bricks, number_bricks)
 
                 if number_bricks <= 0:  # Проверка на победу
                     db.record_game_result(int(id_user), True)
-
+                    # Сообщае о победе
                     open_dialog(victory_message)
+                    # Генирируем заново
                     number_bricks = int(randint(12, 20))
+                    # Открываем все скрытые кнопки
                     after_one_game(playr_or_computer=False)
 
                     output_number_brickse.value = f"Количество кирпичей: {number_bricks}"
                     page.update()
                 else:
+                    # Ход компьютера
                     computer_running(e)
 
         download_button = ft.ElevatedButton(
@@ -284,8 +310,9 @@ def main(page: ft.Page):
 
         def switching(where: bool):
             """
-            Функция для, переключениями между слайдами
-            :param where: True на игровое False на регистрацию
+            Функция для переключением между слайдами.
+
+            :param where: True для перехода на игровое окно, False для перехода на регистрацию.
             """
             # Удаление всех элементов и перевод в тёмную тему.
             page.clean()
@@ -304,12 +331,13 @@ def main(page: ft.Page):
 
                 show_page(0)
                 page.add(
-                    ft.Container(  # Container to hold everything.
-                        content=ft.Row([rail, current_page]),
-                        expand=True  # Allow the content to expand
+                    ft.Container(  # Container для хранения всего содержимого.
+                        content=ft.Row([rail, current_page]),  # Расположение содержимого в строку.
+                        expand=True  # Разрешение содержимому занимать всю доступную площадь.
                     )
                 )
             else:
+                # Очищаем значения полей ввода и скрываем элементы, связанные с игрой.
                 page.clean()
                 user_login.value = None
                 user_gmail.value = None
@@ -330,27 +358,32 @@ def main(page: ft.Page):
                 quality_games = 0
                 quality_win_player = 0
 
+                # Добавляем панель регистрации и навигационную панель.
                 page.add(panel_auth)
                 page.navigation_bar = switch
                 page.theme_mode = ft.ThemeMode.DARK
                 page.update()
 
-        current_page = ft.Container(  # Changed to Container
-            content=ft.Column(),  # Added a Column to manage the page content
-            expand=True,  # added expand=true to allow the content to expand to fill the space.
+        # Упаковка для игры и регистрации
+        current_page = ft.Container(
+            content=ft.Column(),
+            expand=True,
         )
 
         def show_page(index):
-            current_page.content.controls.clear()  # Access controls through the content Column
+            """
+            Функция для переключения из поля игры к статистики и наоборот.
+            """
+            current_page.content.controls.clear()
             if index == 0:
                 current_page.content.controls.append(main_game)
                 page.theme_mode = ft.ThemeMode.DARK
             elif index == 1:
                 current_page.content.controls.append(ft.Column(
-                [
-                    Statistics,  # Title above the table
-                ]
-            ))
+                    [
+                        Statistics,
+                    ]
+                ))
             page.update()
 
         # Загружаем данные таблицы лидеров.
@@ -402,9 +435,9 @@ def main(page: ft.Page):
                 else db.fetch_leaderboard_data()
             )
             if show_alternative_leaderboard:
-                text_for_user_table.content = ft.Text(value='Сортировка по проценту побед.', width=32)
+                text_for_user_table.content = ft.Text(value='Сортировка по проценту побед.', width=160)
             else:
-                text_for_user_table.content = ft.Text(value='Сортировка по количеству побед.', width=32)
+                text_for_user_table.content = ft.Text(value='Сортировка по количеству побед.', width=160)
             # Обновляем контейнер на странице.
             leaderboard_container.update()
             text_for_user_table.update()
@@ -420,21 +453,58 @@ def main(page: ft.Page):
         text_for_user_table = ft.Container(expand=True)
         # Добавляем таблицу в контейнер.
         leaderboard_container.content = create_leaderboard_table(leaderboard_data)
-        text_for_user_table.content = ft.Text(value='Сортировка по количеству побед', width=32)
+        text_for_user_table.content = ft.Text(value='Сортировка по количеству побед', width=160)
 
-
+        # Создание контейнера для статистики
         Statistics = ft.Container(
             content=ft.Column(
                 [
-
-                    ft.Row([ft.Text(value='Статистика'), button_sunny], alignment=ft.MainAxisAlignment.CENTER),
+                    # Первая строка: Заголовок "Статистика" и кнопка button_sunny
+                    ft.Row([button_sunny], alignment=ft.MainAxisAlignment.END),
+                    ft.Row([
+                        ft.Stack(
+                            [
+                                ft.Text(
+                                    spans=[
+                                        ft.TextSpan(
+                                            "Статистика",
+                                            ft.TextStyle(
+                                                size=48,
+                                                weight=ft.FontWeight.BOLD,
+                                                foreground=ft.Paint(
+                                                    color=ft.Colors.BLUE_700,
+                                                    stroke_width=6,
+                                                    stroke_join=ft.StrokeJoin.ROUND,
+                                                    style=ft.PaintingStyle.STROKE,
+                                                ),
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                                ft.Text(
+                                    spans=[
+                                        ft.TextSpan(
+                                            "Статистика",
+                                            ft.TextStyle(
+                                                size=48,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=ft.Colors.GREY_300,
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ], alignment=ft.MainAxisAlignment.CENTER),
+                    # Вторая строка: Текст text_for_user_table и кнопка save_button
                     ft.Row([text_for_user_table, save_button], alignment=ft.MainAxisAlignment.CENTER),
+                    # Третья строка: Контейнер с таблицей лидеров
                     ft.Row([leaderboard_container], alignment=ft.MainAxisAlignment.CENTER),
-
                 ]
             )
         )
 
+        # Создание навигационного рельса
         rail = ft.NavigationRail(
             selected_index=0,
             label_type=ft.NavigationRailLabelType.ALL,
@@ -444,31 +514,35 @@ def main(page: ft.Page):
             group_alignment=-0.9,
 
             destinations=[
+                # Назначение для страницы игры
                 ft.NavigationRailDestination(
                     icon=ft.Icons.GAMES_OUTLINED,
-                    selected_icon=ft.Icons.GAMEPAD_SHARP, label="Игра",
+                    selected_icon=ft.Icons.GAMEPAD_SHARP,
+                    label="Игра",
                 ),
+                # Назначение для страницы статистики
                 ft.NavigationRailDestination(
                     icon=ft.Icons.ANALYTICS_OUTLINED,
                     selected_icon=ft.Icons.ANALYTICS_ROUNDED,
                     label="Статистика",
                 ),
-
             ],
             trailing=ft.Column([
+                # Кнопка с вопросительным знаком, открывающая диалоговое окно с правилами
                 ft.IconButton(icon=ft.Icons.QUESTION_MARK, width=58, height=58,
                               on_click=lambda e: open_dialog(rule_message)),
+                # Кнопка с логотипом GitHub, открывающая ссылку на проект на GitHub
                 ft.IconButton(
-                    content=ft.Image(src="github-mark-white.png", width=32, height=32),  # Use Image as content
+                    content=ft.Image(src="github-mark-white.png", width=32, height=32),
                     width=58,
                     height=58,
-                    url='https://github.com/'  # Handle URL here
+                    url='https://github.com/PENROG21/Brick_Game'
                 ),
-                # New button
             ], alignment=ft.MainAxisAlignment.CENTER),
-            leading=ft.Row([ft.IconButton(icon=ft.Icons.HOME, width=32, height=32, on_click=lambda _:
-            switching(False))],
-                           alignment=ft.MainAxisAlignment.END),
+            # Кнопка "Домой", возвращающая пользователя на страницу регистрации
+            leading=ft.Row(
+                [ft.IconButton(icon=ft.Icons.HOME, width=32, height=58, on_click=lambda _: switching(False))],
+                alignment=ft.MainAxisAlignment.END),
 
             height=600
         )
@@ -483,11 +557,11 @@ def main(page: ft.Page):
                 [
                     ft.Row([welcome_title], alignment=ft.MainAxisAlignment.CENTER),
                     # Заголовок приложения
-
                     ft.Row([output_number_brickse], alignment=ft.MainAxisAlignment.CENTER),
                     ft.Row([ft.Text(value='Сколько кирпичей возьмёте?', size=24, weight=ft.FontWeight.BOLD,
                                     selectable=True)],
                            alignment=ft.MainAxisAlignment.CENTER),
+                    # Кнопки хода
                     ft.Row(
                         [
                             ft.IconButton(
@@ -523,6 +597,7 @@ def main(page: ft.Page):
                                     repeat=ft.ImageRepeat.NO_REPEAT,
                                 )
                             ),
+                            # Различные сообщея.
                             error_message,
                             victory_message,
                             defeat_message,
@@ -566,10 +641,8 @@ def main(page: ft.Page):
         def register(e):
             """
             Функция, которая записывает данные пользователя
-            если возраст указа корректно
-            :param e:
-            :return:
             """
+            print(gender_radio.value + ' 1')
             if len(user_password.value) < 6:
                 show_error_template("Пароль должен состоять из 6 символов и более.")
             # Проверяем, что адрес правильно указан.
@@ -591,8 +664,8 @@ def main(page: ft.Page):
             else:
                 # Выполнение SQL-запроса
                 db.Insert_Users(user_login.value, user_password.value, user_gmail=user_gmail.value,
-                                    is_man=bool(gender_radio.value),
-                                    birthdate=(selected_date.value))
+                                is_man=gender_radio.value,
+                                birthdate=(selected_date.value))
                 switching(True)
 
         def auth_user(e):
@@ -621,6 +694,7 @@ def main(page: ft.Page):
                 gender_radio.value is not None,
                 selected_date.value is not None and len(selected_date.value) > 0,
             ])
+            print(gender_radio.value)
 
             is_value_auth = all([
                 user_gmail.value,
@@ -633,6 +707,9 @@ def main(page: ft.Page):
             page.update()
 
         def validate_PASSWORD(e):
+            """
+            Функция делает видным пароль.
+            """
             user_password.password = False if user_password.password is True else True
             page.update()
 
@@ -645,11 +722,10 @@ def main(page: ft.Page):
         btn_auth = ft.OutlinedButton(text='Авторизация', width=240, on_click=auth_user, disabled=True)
 
         gender_radio = ft.RadioGroup(content=ft.Column([
-            ft.Radio(value='True', label="Мужской"),
-            ft.Radio(value='False', label="Женский"),
+            ft.Radio(value=True, label="Мужской"),
+            ft.Radio(value=False, label="Женский"),
         ]), on_change=validate)
         gender_radio.value = None  # Начальное значение - ничего не выбрано
-
 
         selected_date = ft.TextField(
             label="Ваша дата рождения",
@@ -665,6 +741,7 @@ def main(page: ft.Page):
             selected_date.value = e.control.value.strftime('%Y-%m-%d')
             page.update()
 
+        # Страница регистрации
         panel_register = ft.Row(
             [
                 ft.Column(
@@ -726,7 +803,7 @@ def main(page: ft.Page):
             ],
             alignment=ft.MainAxisAlignment.CENTER
         )
-
+        # Страница авторизации
         panel_auth = ft.Row(
             [
                 ft.Column(
@@ -775,6 +852,11 @@ def main(page: ft.Page):
         )
 
         def navigate(e):
+            """
+            Функция, которая переключает страницу регистрации на авторизацию и на оборот.
+            :param e:
+            :return:
+            """
             index = page.navigation_bar.selected_index
             page.clean()
 
@@ -793,12 +875,12 @@ def main(page: ft.Page):
         )
 
         page.navigation_bar = switch
-
+        # Стартовая панель регистрацииы
         page.add(
             panel_register
         )
-
-        keyboard.add_hotkey('ctrl+s', lambda : switching(False))
+        # Обработка горячей клавиши
+        keyboard.add_hotkey('ctrl+s', lambda: switching(False))
 
     except Exception as e:
         page.add(ft.Text(f"An error occurred: {e}"))

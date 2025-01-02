@@ -58,7 +58,7 @@ class PostgresConnection:
         result = self.cursor.fetchall()
         return len(result) > 0  # True если строка найдена, False иначе
 
-    def Insert_Users(self, user_login: str, user_password: str, user_gmail: str, is_man: bool,
+    def Insert_Users(self, user_login: str, user_password: str, user_gmail: str, is_man,
                      birthdate: str):
         """
         Метод для добавления данных пользователя в базу данных.
@@ -68,6 +68,7 @@ class PostgresConnection:
         :param is_man: Если man то True иначе False
         :param birthdate: Дата рождения
         """
+        print(f'{is_man} + 2we')
         try:
             self.cursor.execute("""INSERT INTO users(name, gmail, is_man, birthdate, password) VALUES 
             (%s, %s, %s, %s, %s)""",
@@ -93,6 +94,11 @@ class PostgresConnection:
         return result[0] if result else ""
 
     def record_game_result(self, id_user: int, victory: bool):
+        """
+        Метод записывает в базу данных результат игры
+        :param id_user: id юзер
+        :param victory: True - выиграл False - Проиграл
+        """
         self.cursor.execute(f"SELECT record_game_result({id_user}, {victory})")
         self.commit()
 
@@ -152,7 +158,7 @@ class PostgresConnection:
             return leaderboard_data
         except psycopg2.Error as e:
             print(f"Database error during leaderboard fetch: {e}")
-            return None  # or raise the exception, depending on your error handling strategy
+            return None
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             return None
@@ -176,7 +182,7 @@ class PostgresConnection:
             return leaderboard_data
         except psycopg2.Error as e:
             print(f"Database error during leaderboard fetch: {e}")
-            return None  # or raise the exception, depending on your error handling strategy
+            return None
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
             return None
@@ -191,7 +197,14 @@ class PostgresConnection:
 
 
 class ParquetStorage:
+    """
+    Класс для работы с файлом parquet
+    """
     def __init__(self, file_path):
+        """
+        Иницилизируем путь к фаилу.
+        :param file_path:
+        """
         self.file_path = file_path
         # Создаем файл, если он не существует
 
@@ -216,15 +229,54 @@ class ParquetStorage:
         # Вызываем метод для добавления из DataFrame
         self.add_data_from_dataframe(new_data)
 
+    def add_data_topic(self, topic: bool, id_user):
+        new_data = pd.DataFrame({
+            'to_black': [topic],
+            'time': [datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+            'id_user': [id_user]
+        })
+
+        self.add_data_from_dataframe(new_data)
+
     def read_data(self):
         """Читать данные из файла Parquet."""
         df = pd.read_parquet(self.file_path)
         return df.to_string(index=False, justify='left')  # Format the output
 
 
+class TextFileDatabase:
+    """
+    Класс для взаимодействия с файлом
+    """
+    def __init__(self, file: str):
+        """
+        Инитилизация
+        :param file: имя файла.
+        """
+        self.file = file
+
+    def add_entry(self, text: str) -> bool:
+        """
+        Метод для записи в фаил.
+        :param text: Текст, который надо добавить
+        :return:
+        """
+        try:
+            with open(self.file, "w") as file:
+                # Запишите строку в файл
+                file.write(text)
+            return True
+        except FileNotFoundError:
+            print(f"Файл {self.file} не найден!")
+            return False
+        except Exception as e:
+            print(f"Ошибка при записи в файл {self.file}: {e}")
+            return False
+
+
 # Пример использования:
 if __name__ == "__main__":
     # Замените данные для подключения на свои
-    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
+    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data_topic.parquet')
 
     print(pq.read_data())
