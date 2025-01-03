@@ -277,6 +277,6 @@ class TextFileDatabase:
 # Пример использования:
 if __name__ == "__main__":
     # Замените данные для подключения на свои
-    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data_topic.parquet')
+    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
 
     print(pq.read_data())

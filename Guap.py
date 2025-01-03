@@ -1,9 +1,11 @@
-import datetime
 from random import randint
 import flet as ft
 import pandas as pd
 from data_base import PostgresConnection, ParquetStorage
 import keyboard
+import atexit
+from datetime import datetime
+
 
 # Подключаемся к базе данны
 db = PostgresConnection(
@@ -15,6 +17,20 @@ db.connect()
 # Подключаемся к файлу для озера данных.
 pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
 pq_topic = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data_topic.parquet')
+
+data_frame = pd.DataFrame({
+            "user_id": [],
+            "timestamp": [],
+            "player_id": [],
+            "bricks_captured": [],
+            "bricks_remaining": []
+})
+
+data_frame_topic = pd.DataFrame({
+            'to_black': [],
+            'timestamp': [],
+            'id_user': []
+})
 
 
 # page - это вся страница приложения
@@ -50,6 +66,30 @@ def main(page: ft.Page):
             """
             dialog_to_open.open = True
             dialog_to_open.update()
+
+        def append_data_to_dataframe(data_frame, new_data):
+            """Добавляет данные в существующий дата фрейм.
+
+            Args:
+                data_frame: Существующий дата фрейм.
+                new_data: Новые данные для добавления в дата фрейм.
+
+            Returns:
+                Обновленный дата фрейм с добавленными данными.
+            """
+            # Проверяем, что столбцы совпадают
+            if set(new_data.index) != set(data_frame.columns):
+                raise ValueError(f"Столбцы в новых данных не совпадают со столбцами в существующем дата фрейме. "
+                                 f"{data_frame} / {new_data}")
+
+            # Преобразуем Series в DataFrame
+            new_data = pd.DataFrame(new_data).T
+
+            # Добавляем данные
+            data_frame = data_frame._append(new_data, ignore_index=True)
+
+            # Возвращаем обновленный дата фрейм
+            return data_frame
 
         def close_dialog(dialog_to_close: ft.AlertDialog):
             """Закрывает диалоговое окно.
@@ -148,11 +188,18 @@ def main(page: ft.Page):
             """
             Функция, которая меняет тему на противоположную.
             """
+            global data_frame_topic
             if page.theme_mode == ft.ThemeMode.DARK:
                 # Если текущая тема - темная, меняем ее на светлую
                 page.theme_mode = ft.ThemeMode.LIGHT
                 page.Icon = ft.Icons.DARK_MODE_ROUNDED
                 e.control.Icon = ft.Icons.DARK_MODE_ROUNDED
+                print(f'{id_user} QW')
+
+                data_frame_topic = append_data_to_dataframe(data_frame_topic,
+                                                            pd.Series({'to_black': False, 'timestamp':
+                                                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                            'id_user': id_user}))
 
                 pq_topic.add_data_topic(False, id_user)
             else:
@@ -160,8 +207,12 @@ def main(page: ft.Page):
                 page.theme_mode = ft.ThemeMode.DARK
                 page.Icon = ft.Icons.SUNNY
                 e.control.Icon = ft.Icons.SUNNY
+                print(f'{id_user} QW')
 
-                pq_topic.add_data_topic(True, id_user)
+                data_frame_topic = append_data_to_dataframe(data_frame_topic,
+                                                            pd.Series({'to_black': True, 'timestamp':
+                                                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                            'id_user': id_user}))
             # Обновляем отображение страницы
             page.update()
 
@@ -233,7 +284,20 @@ def main(page: ft.Page):
             # Вычитаем ход из общей суммы кирпичей.
             number_bricks -= computer_player
             # Записываем в общий дата лайк
-            pq.add_data(int(id_user), 2, computer_player, number_bricks)
+
+            global data_frame
+
+            data_frame = append_data_to_dataframe(data_frame,
+            pd.Series({
+                "user_id": id_user,
+                "timestamp": datetime.now(),
+                "player_id": 2,
+                "bricks_captured": computer_player,
+                "bricks_remaining": number_bricks
+            }))
+
+            print('12334')
+
 
             if number_bricks <= 0:  # Проверка на поражение
                 # Сообщаем о поражении
@@ -267,7 +331,17 @@ def main(page: ft.Page):
                 number_bricks -= taken_bricks
                 # Записываем в общий дата лайк
                 nonlocal id_user
-                pq.add_data(int(id_user), 1, taken_bricks, number_bricks)
+                global data_frame
+
+                data_frame = append_data_to_dataframe(data_frame,
+                                                      pd.Series({
+                                                          "user_id": id_user,
+                                                          "timestamp": datetime.now(),
+                                                          "player_id": 1,
+                                                          "bricks_captured": taken_bricks,
+                                                          "bricks_remaining": number_bricks
+                                                      }))
+                print('12334')
 
                 if number_bricks <= 0:  # Проверка на победу
                     db.record_game_result(int(id_user), True)
@@ -323,7 +397,7 @@ def main(page: ft.Page):
                 # Получение логина юзера
                 login_user = db.get_user_name_by_email(user_gmail.value)
                 # Получение id юзера
-                id_user = db.get_user_id_by_name(login_user)
+                id_user = int(db.get_user_id_by_name(login_user))
                 # Убираем предыдущий navigation_bar
                 page.navigation_bar = None
 
@@ -694,7 +768,6 @@ def main(page: ft.Page):
                 gender_radio.value is not None,
                 selected_date.value is not None and len(selected_date.value) > 0,
             ])
-            print(gender_radio.value)
 
             is_value_auth = all([
                 user_gmail.value,
@@ -885,6 +958,14 @@ def main(page: ft.Page):
     except Exception as e:
         page.add(ft.Text(f"An error occurred: {e}"))
 
+
+def load_data_main_bd():
+    pq.add_data_from_dataframe(data_frame)
+    pq_topic.add_data_from_dataframe(data_frame_topic)
+
+
+# Регистрация функции печати для вызова при завершении программы
+atexit.register(lambda: load_data_main_bd())
 
 if __name__ == "__main__":
     # Запуск приложения
