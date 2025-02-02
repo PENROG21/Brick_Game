@@ -68,7 +68,6 @@ class PostgresConnection:
         :param is_man: Если man то True иначе False
         :param birthdate: Дата рождения
         """
-        print(f'{is_man} + 2we')
         try:
             self.cursor.execute("""INSERT INTO users(name, gmail, is_man, birthdate, password) VALUES 
             (%s, %s, %s, %s, %s)""",
@@ -88,7 +87,6 @@ class PostgresConnection:
         Returns:
             str: Имя пользователя или пустая строка, если пользователь не найден.
         """
-        print(gmail)
         self.cursor.execute(f"SELECT name FROM users WHERE gmail = '{gmail}'")
         result = self.cursor.fetchone()
         return result[0] if result else ""
@@ -210,8 +208,12 @@ class ParquetStorage:
 
     def add_data_from_dataframe(self, df):
         """Добавить данные из DataFrame в файл Parquet."""
-        # Читаем существующий файл Parquet
-        existing_df = pd.read_parquet(self.file_path)
+        try:
+            # Читаем существующий файл Parquet
+            existing_df = pd.read_parquet(self.file_path)
+        except FileNotFoundError:
+            # Если файл не существует, создаем новый DataFrame
+            existing_df = pd.DataFrame()
         # Объединяем с новыми данными и сохраняем обратно в файл
         combined_df = pd.concat([existing_df, df], ignore_index=True)
         combined_df.to_parquet(self.file_path, index=False)
@@ -277,6 +279,6 @@ class TextFileDatabase:
 # Пример использования:
 if __name__ == "__main__":
     # Замените данные для подключения на свои
-    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
+    pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\save_data_file.parquet')
 
     print(pq.read_data())

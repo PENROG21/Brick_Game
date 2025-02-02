@@ -3,8 +3,8 @@ import flet as ft
 import pandas as pd
 from data_base import PostgresConnection, ParquetStorage
 import keyboard
-import atexit
 from datetime import datetime
+import atexit
 
 
 # Подключаемся к базе данны
@@ -17,6 +17,8 @@ db.connect()
 # Подключаемся к файлу для озера данных.
 pq = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data.parquet')
 pq_topic = ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\data_topic.parquet')
+pq_save_file = (
+    ParquetStorage(r'C:\Users\user\PycharmProjects\pythonProject1\degs\Brick_Came\Data lake\save_data_file.parquet'))
 
 data_frame = pd.DataFrame({
             "user_id": [],
@@ -27,9 +29,15 @@ data_frame = pd.DataFrame({
 })
 
 data_frame_topic = pd.DataFrame({
-            'to_black': [],
-            'timestamp': [],
-            'id_user': []
+    'to_black': pd.Series(dtype='bool'),  # Указываем тип bool
+    'time': pd.Series(dtype='datetime64[ns]'),
+    'id_user': []
+})
+
+data_frame_save_file = pd.DataFrame({
+    'id_format': [],
+    'time': [],
+    'id_user': []
 })
 
 
@@ -54,10 +62,12 @@ def main(page: ft.Page):
         # Высота
         page.window.height = 800
         # Возможность менять размер окна
+        page.theme_mode = ft.ThemeMode.LIGHT
 
         # Глобальные пременые.
         login_user = None
         id_user = None
+
 
         def open_dialog(dialog_to_open: ft.AlertDialog):
             """Открывает диалоговое окно.
@@ -72,23 +82,13 @@ def main(page: ft.Page):
 
             Args:
                 data_frame: Существующий дата фрейм.
-                new_data: Новые данные для добавления в дата фрейм.
+                new_Новые данные для добавления в дата фрейм.
 
             Returns:
                 Обновленный дата фрейм с добавленными данными.
             """
-            # Проверяем, что столбцы совпадают
-            if set(new_data.index) != set(data_frame.columns):
-                raise ValueError(f"Столбцы в новых данных не совпадают со столбцами в существующем дата фрейме. "
-                                 f"{data_frame} / {new_data}")
-
-            # Преобразуем Series в DataFrame
-            new_data = pd.DataFrame(new_data).T
-
-            # Добавляем данные
-            data_frame = data_frame._append(new_data, ignore_index=True)
-
-            # Возвращаем обновленный дата фрейм
+            new_df = pd.DataFrame([new_data])
+            data_frame = pd.concat([data_frame, new_df], ignore_index=True)
             return data_frame
 
         def close_dialog(dialog_to_close: ft.AlertDialog):
@@ -104,17 +104,29 @@ def main(page: ft.Page):
             Функция для сериализации и скачивания данных игры.
             """
             nonlocal id_user
+            global data_frame_save_file
             # Создаем DataFrame
             result = db.table_for_save(int(id_user))
             df = pd.DataFrame([result], columns=['Количество побед', 'Количество игр'])
             # Проверяем какой формат нужен пользователю
             if dropdown.value == 'json':
                 df.to_json('Brick_data.json', index=False)
+                data_frame_save_file = append_data_to_dataframe(data_frame_save_file,
+                                                                pd.Series({'id_format': 1,
+                                                                           'time': datetime.now(),
+                                                                           'id_user': id_user}))
             elif dropdown.value == 'excel':
                 df.to_excel('Brick_data.xlsx', index=False)
+                data_frame_save_file = append_data_to_dataframe(data_frame_save_file,
+                                                                pd.Series({'id_format': 2,
+                                                                           'time': datetime.now(),
+                                                                           'id_user': id_user}))
             elif dropdown.value == 'csv':
                 df.to_csv('Brick_data.csv', index=False)
-
+                data_frame_save_file = append_data_to_dataframe(data_frame_save_file,
+                                                                pd.Series({'id_format': 3,
+                                                                           'time': datetime.now(),
+                                                                           'id_user': id_user}))
             # Сообщаем что данные скачены.
             open_dialog(load_message)
 
@@ -194,24 +206,21 @@ def main(page: ft.Page):
                 page.theme_mode = ft.ThemeMode.LIGHT
                 page.Icon = ft.Icons.DARK_MODE_ROUNDED
                 e.control.Icon = ft.Icons.DARK_MODE_ROUNDED
-                print(f'{id_user} QW')
 
                 data_frame_topic = append_data_to_dataframe(data_frame_topic,
-                                                            pd.Series({'to_black': False, 'timestamp':
-                                                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                            pd.Series({'to_black': False, 'time':
+                                                            datetime.now(),
                                                             'id_user': id_user}))
 
-                pq_topic.add_data_topic(False, id_user)
             else:
                 # Если текущая тема - светлая, меняем ее на темную
                 page.theme_mode = ft.ThemeMode.DARK
                 page.Icon = ft.Icons.SUNNY
                 e.control.Icon = ft.Icons.SUNNY
-                print(f'{id_user} QW')
 
                 data_frame_topic = append_data_to_dataframe(data_frame_topic,
-                                                            pd.Series({'to_black': True, 'timestamp':
-                                                            datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                                            pd.Series({'to_black': True, 'time':
+                                                            datetime.now(),
                                                             'id_user': id_user}))
             # Обновляем отображение страницы
             page.update()
@@ -284,9 +293,7 @@ def main(page: ft.Page):
             # Вычитаем ход из общей суммы кирпичей.
             number_bricks -= computer_player
             # Записываем в общий дата лайк
-
             global data_frame
-
             data_frame = append_data_to_dataframe(data_frame,
             pd.Series({
                 "user_id": id_user,
@@ -295,8 +302,6 @@ def main(page: ft.Page):
                 "bricks_captured": computer_player,
                 "bricks_remaining": number_bricks
             }))
-
-            print('12334')
 
 
             if number_bricks <= 0:  # Проверка на поражение
@@ -341,7 +346,6 @@ def main(page: ft.Page):
                                                           "bricks_captured": taken_bricks,
                                                           "bricks_remaining": number_bricks
                                                       }))
-                print('12334')
 
                 if number_bricks <= 0:  # Проверка на победу
                     db.record_game_result(int(id_user), True)
@@ -716,7 +720,6 @@ def main(page: ft.Page):
             """
             Функция, которая записывает данные пользователя
             """
-            print(gender_radio.value + ' 1')
             if len(user_password.value) < 6:
                 show_error_template("Пароль должен состоять из 6 символов и более.")
             # Проверяем, что адрес правильно указан.
@@ -955,6 +958,7 @@ def main(page: ft.Page):
         # Обработка горячей клавиши
         keyboard.add_hotkey('ctrl+s', lambda: switching(False))
 
+
     except Exception as e:
         page.add(ft.Text(f"An error occurred: {e}"))
 
@@ -962,10 +966,11 @@ def main(page: ft.Page):
 def load_data_main_bd():
     pq.add_data_from_dataframe(data_frame)
     pq_topic.add_data_from_dataframe(data_frame_topic)
+    pq_save_file.add_data_from_dataframe(data_frame_save_file)
 
+# Регистрируем функцию для выполнения при завершении программы
+atexit.register(load_data_main_bd)
 
-# Регистрация функции печати для вызова при завершении программы
-atexit.register(lambda: load_data_main_bd())
 
 if __name__ == "__main__":
     # Запуск приложения
